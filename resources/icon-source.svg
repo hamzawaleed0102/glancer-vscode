@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFB47A"/>
+      <stop offset="0.55" stop-color="#E47452"/>
+      <stop offset="1" stop-color="#C8412C"/>
+    </linearGradient>
+    <radialGradient id="hi" cx="128" cy="-8" r="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <clipPath id="card">
+      <rect width="256" height="256" rx="56"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="256" height="256" fill="url(#bg)"/>
+    <rect width="256" height="256" fill="url(#hi)"/>
+
+    <g transform="translate(128 128) scale(0.78) translate(-128 -128)">
+      <g filter="url(#glow)" opacity="0.55" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="20" y="78" width="100" height="100" rx="36"/>
+        <rect x="136" y="78" width="100" height="100" rx="36"/>
+        <path d="M 120 110 Q 128 138 136 110"/>
+        <path d="M 30 92 L 12 68"/>
+        <path d="M 226 92 L 244 68"/>
+      </g>
+      <g fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="20" y="78" width="100" height="100" rx="36"/>
+        <rect x="136" y="78" width="100" height="100" rx="36"/>
+        <path d="M 120 110 Q 128 138 136 110"/>
+        <path d="M 30 92 L 12 68"/>
+        <path d="M 226 92 L 244 68"/>
+      </g>
+    </g>
+  </g>
+</svg>

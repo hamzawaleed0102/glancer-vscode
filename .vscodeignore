@@ -14,3 +14,8 @@ out/**/*.test.js.map
 **/*.map
 **/*.ts
 **/tsconfig.json
+CLAUDE.md
+resources/icon-source.svg
+resources/readme/*.svg
+scripts/render-readme-pngs.mjs
+

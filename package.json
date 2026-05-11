@@ -2,12 +2,22 @@
   "name": "glance-claude-code",
   "displayName": "Glance for Claude Code",
   "description": "Multi-session Claude Code agent panel for VS Code.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "hamzawaleed",
   "license": "MIT",
   "icon": "resources/icon.png",
-  "categories": ["AI", "Chat", "Other"],
-  "keywords": ["claude", "claude-code", "agent", "ai", "anthropic"],
+  "categories": [
+    "AI",
+    "Chat",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agent",
+    "ai",
+    "anthropic"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/hamzawaleed0102/glancer-vscode.git"
@@ -16,9 +26,13 @@
     "url": "https://github.com/hamzawaleed0102/glancer-vscode/issues"
   },
   "homepage": "https://marketplace.visualstudio.com/items?itemName=hamzawaleed.glance-claude-code",
-  "engines": { "vscode": "^1.90.0" },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
   "main": "./out/extension.js",
-  "activationEvents": ["onView:glancer.agents"],
+  "activationEvents": [
+    "onView:glancer.agents"
+  ],
   "scripts": {
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
@@ -30,28 +44,53 @@
   "contributes": {
     "viewsContainers": {
       "activitybar": [
-        { "id": "glancer", "title": "Glance", "icon": "resources/glancer.svg" }
+        {
+          "id": "glancer",
+          "title": "Glance",
+          "icon": "resources/glancer.svg"
+        }
       ]
     },
     "views": {
       "glancer": [
-        { "id": "glancer.agents", "name": "Agents", "type": "webview" }
+        {
+          "id": "glancer.agents",
+          "name": "Agents",
+          "type": "webview"
+        }
       ]
     },
     "commands": [
-      { "command": "glancer.focusPanel", "title": "Glance: Focus Agent Panel" },
-      { "command": "glancer.newAgent", "title": "Glance: New Agent" },
-      { "command": "glancer.killActive", "title": "Glance: Kill Active Agent" }
+      {
+        "command": "glancer.focusPanel",
+        "title": "Glance: Focus Agent Panel"
+      },
+      {
+        "command": "glancer.newAgent",
+        "title": "Glance: New Agent"
+      },
+      {
+        "command": "glancer.killActive",
+        "title": "Glance: Kill Active Agent"
+      }
     ],
     "keybindings": [
-      { "command": "glancer.focusPanel", "key": "ctrl+shift+g", "mac": "cmd+shift+g" },
+      {
+        "command": "glancer.focusPanel",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g"
+      },
       {
         "command": "glancer.newAgent",
         "key": "ctrl+shift+g",
         "mac": "cmd+shift+g",
         "when": "focusedView == glancer.agents"
       },
-      { "command": "glancer.newAgent", "key": "ctrl+alt+n", "mac": "cmd+alt+n" },
+      {
+        "command": "glancer.newAgent",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n"
+      },
       {
         "command": "glancer.killActive",
         "key": "ctrl+backspace",
@@ -67,6 +106,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^20.12.7",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -75,6 +115,9 @@
     "typescript": "^5.4.5"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "node-pty"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "node-pty"
+    ]
   }
 }

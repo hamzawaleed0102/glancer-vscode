@@ -4,7 +4,7 @@ Run multiple Claude Code sessions side-by-side in VS Code, with a live status ca
 
 [![Install from VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/hamzawaleed.glance-claude-code?label=VS%20Marketplace&color=2a6cf0)](https://marketplace.visualstudio.com/items?itemName=hamzawaleed.glance-claude-code)
 
-![Glance — multi-session Claude Code agent panel for VS Code](resources/readme/hero.svg)
+![Glance — multi-session Claude Code agent panel for VS Code](resources/readme/hero.png)
 
 Every agent runs in a real VS Code terminal. Each one reports its own title, one-line TL;DR, progress, and a flag when it's blocked on you — all on a card in the sidebar — so you can keep five sessions humming without losing track of which one needs you next.
 
@@ -26,7 +26,7 @@ Click the Glance icon in the activity bar to open the panel, then hit **+ New Se
 
 Glance ships a tiny MCP server and instructs Claude to call its `update_state` tool at the end of every turn. The tool's JSON payload lights up the card — no transcript parsing, no scraping shell output.
 
-![Anatomy of an agent card — title, TL;DR, progress bar, status stripe, model chip, kill](resources/readme/card-anatomy.svg)
+![Anatomy of an agent card — title, TL;DR, progress bar, status stripe, model chip, kill](resources/readme/card-anatomy.png)
 
 Five fields, sent on every call (pass `null` for what doesn't apply):
 
@@ -44,19 +44,19 @@ The card also tracks lifecycle automatically — turn-complete plays a tone, `/c
 
 Hold any card and drop it where you want it. Order persists across reloads.
 
-![Drag-drop reorder — accent stripe on the drop target](resources/readme/drag-drop.svg)
+![Drag-drop reorder — accent stripe on the drop target](resources/readme/drag-drop.png)
 
 ### Attention badge on the activity bar
 
 When any agent needs input or hits an error, the Glance icon in the activity bar shows a count badge — so you know to come back even when the sidebar is collapsed or you're in another panel.
 
-![Activity-bar count badge appears when an agent is waiting on you](resources/readme/badge.svg)
+![Activity-bar count badge appears when an agent is waiting on you](resources/readme/badge.png)
 
 ### Toast when a turn finishes in the background
 
 If you're not actively watching an agent when its turn completes, Glance fires a native VS Code information toast (plus a short tone) so the result reaches you without yanking focus. The toast carries the agent's name, the latest `tldr` or `needsInput` reason, and a **Show** button that jumps straight to that terminal.
 
-![VS Code information toast showing an agent's name and the reason it needs you, with a Show button](resources/readme/notification.svg)
+![VS Code information toast showing an agent's name and the reason it needs you, with a Show button](resources/readme/notification.png)
 
 The toast is suppressed when you're already looking at that agent's terminal, so you don't get pinged for work you're staring at.
 
@@ -104,21 +104,6 @@ pnpm run test
 ```
 
 Plain `node:test` files compiled by esbuild and executed against `out/`. To add a test file, list it in both `esbuild.config.mjs` (`testEntries`) and the `scripts.test` entry in `package.json`.
-
-## How it fits together
-
-Three runtimes cooperate per agent:
-
-1. **Extension host** — owns the `node-pty` child per agent, a chokidar watcher on `state/<id>.json`, and a global watcher on the hook events directory. Owns persistence (`sessions.json` + `state/<id>.json`) and the activity-bar badge.
-2. **VS Code pseudoterminal** — wraps the PTY so VS Code handles scrollback. A "Starting session…" placeholder is held until Claude's alt-screen escape arrives, so the launch command never leaks into terminal output.
-3. **Webview (React)** — the sidebar UI. Communicates with the host over typed `postMessage` envelopes (see `src/shared/messages.ts`).
-
-Two file-based pipelines run continuously:
-
-- `glancer - update_state` (MCP tool) → `state/<id>.json` → chokidar → card. This is the marker path.
-- `Stop` / `UserPromptSubmit` / `Notification` / `SessionStart` (Claude hooks) → `events/*.json` → chokidar → lifecycle state. This is the streaming / attention / clear path.
-
-See [`CLAUDE.md`](./CLAUDE.md) for the in-depth tour, including the conventions around marker sanitization, dormant agents, and the focus-race retry logic on auto-spawn.
 
 ## License
 

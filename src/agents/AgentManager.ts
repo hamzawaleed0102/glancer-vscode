@@ -38,6 +38,13 @@ export class AgentManager implements vscode.Disposable {
   private readonly instructionsPath: string;
   private readonly sessionsFile: string;
   private readonly eventsWatcher: FSWatcher;
+  /**
+   * VS Code's onDidChangeActiveTerminal subscription — mirrors the active
+   * terminal pane's selection back into the Glance sidebar so clicking a
+   * terminal tab at the bottom highlights its agent card without a second
+   * trip through the panel.
+   */
+  private readonly activeTerminalSub: vscode.Disposable;
 
   private readonly changeEmitter = new vscode.EventEmitter<ManagerEvent>();
   readonly onChange = this.changeEmitter.event;
@@ -168,6 +175,13 @@ export class AgentManager implements vscode.Disposable {
     // alongside in `state/<id>.json` files written by Claude via MCP.
     this.sessionsFile = path.join(this.storageDir, 'sessions.json');
     this.restorePersistedAgents();
+
+    // Keep the sidebar's active card in sync with VS Code's active terminal.
+    // Firing on every terminal switch is cheap (O(agents) scan) and avoids
+    // adding a second source of truth — `activeId` is still owned here.
+    this.activeTerminalSub = vscode.window.onDidChangeActiveTerminal((t) =>
+      this.syncActiveFromTerminal(t),
+    );
   }
 
   /**
@@ -470,6 +484,22 @@ export class AgentManager implements vscode.Disposable {
     this.changeEmitter.fire({ type: 'active', id });
   }
 
+  /**
+   * Mirror the user's terminal-pane selection into the sidebar. Called from
+   * `onDidChangeActiveTerminal`. Non-Glance terminals (and `undefined`) are
+   * ignored — the previously active card stays put rather than blanking out
+   * every time the user clicks an unrelated shell.
+   */
+  private syncActiveFromTerminal(t: vscode.Terminal | undefined): void {
+    if (!t) return;
+    for (const [id, a] of this.agents) {
+      if (a.ownsTerminal(t)) {
+        this.setActive(id);
+        return;
+      }
+    }
+  }
+
   private handleHookEvent(filePath: string): void {
     let payload: unknown;
     try {
@@ -571,6 +601,7 @@ export class AgentManager implements vscode.Disposable {
     for (const a of this.agents.values()) a.dispose();
     this.agents.clear();
     this.eventsWatcher.close();
+    this.activeTerminalSub.dispose();
     this.changeEmitter.dispose();
   }
 }

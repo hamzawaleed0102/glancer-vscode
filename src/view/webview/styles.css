@@ -116,15 +116,20 @@ body {
 .agent-card.active {
   background: linear-gradient(
     180deg,
-    rgba(99, 162, 255, 0.10) 0%,
-    rgba(99, 162, 255, 0.04) 100%
+    rgba(99, 162, 255, 0.22) 0%,
+    rgba(99, 162, 255, 0.10) 100%
   );
-  border-color: var(--accent);
+  border-color: rgba(99, 162, 255, 0.75);
+  /* Layered ring: a hard 1px inner accent, a soft 4px halo, and a
+   * deeper drop shadow lift the active card off the surrounding rows
+   * regardless of which status color owns the left stripe. */
   box-shadow:
-    0 0 0 1px rgba(99, 162, 255, 0.25),
-    0 4px 14px rgba(0, 0, 0, 0.28);
+    0 0 0 1px rgba(99, 162, 255, 0.55),
+    0 0 0 4px rgba(99, 162, 255, 0.14),
+    0 6px 18px rgba(0, 0, 0, 0.40);
 }
-.agent-card.active::before { width: 4px; }
+.agent-card.active::before { width: 5px; }
+.agent-card.active .agent-name { color: #ffffff; font-weight: 700; }
 .agent-card.starting { opacity: 0.85; }
 
 /* Drag-and-drop visual states. */
@@ -221,7 +226,6 @@ body {
   min-width: 0;
   flex: 0 1 auto;
 }
-.agent-card.active .agent-name { color: var(--vscode-foreground); }
 .agent-name-input {
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);

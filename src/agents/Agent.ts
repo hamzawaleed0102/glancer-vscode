@@ -383,10 +383,23 @@ export class Agent implements vscode.Disposable {
     // and the green ✓ takes over (based on tldr/progress). Without this,
     // streaming would stay true forever, since no PTY-data heuristic
     // resets it now.
+    const patch: Partial<AgentSnapshot> = {};
     if (this._streaming) {
       this._streaming = false;
-      this.changeEmitter.fire({ streaming: false });
+      patch.streaming = false;
     }
+    // Clear any attention marker the Notification hook set mid-turn. If
+    // Stop fires, the interactive picker was answered (or cancelled) —
+    // the user is no longer being asked anything. Without this, picker
+    // answers don't trigger any hook of their own, so the yellow state
+    // persists until the next UserPromptSubmit or an explicit
+    // needsInput=null from the model's next update_state call (which it
+    // often doesn't emit mid-tool-chain).
+    if (this._attentionReason !== null) {
+      this._attentionReason = null;
+      patch.attentionReason = null;
+    }
+    if (Object.keys(patch).length > 0) this.changeEmitter.fire(patch);
     this.turnCompleteEmitter.fire();
   }
 
@@ -423,6 +436,11 @@ export class Agent implements vscode.Disposable {
   /** True when this agent's terminal is the active VS Code terminal. */
   isTerminalActive(): boolean {
     return !!this.terminal && vscode.window.activeTerminal === this.terminal;
+  }
+
+  /** True when this agent owns the given VS Code terminal instance. */
+  ownsTerminal(t: vscode.Terminal): boolean {
+    return this.terminal === t;
   }
 
   clearTransient(): void {
