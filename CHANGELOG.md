@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5 — 2026-05-12
+
+- Polish: auto-assigned agent names now read `glance-XX` (matches the product) instead of the legacy `glancer-XX`. Existing renamed cards keep their saved name.
+- Polish: manual renames and AI-supplied titles are auto-capitalized on the first letter so cards present consistently.
+
 ## 0.0.4 — 2026-05-12
 
 - Add: first-install welcome walkthrough that teaches the activity-bar location plus the focus / spawn / enter / cycle / kill shortcuts. Re-openable any time via **Glance: Show Welcome Tour** in the Command Palette.
