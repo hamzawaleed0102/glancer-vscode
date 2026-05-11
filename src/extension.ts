@@ -3,6 +3,8 @@ import { AgentManager } from './agents/AgentManager';
 import { AgentPanelProvider } from './view/AgentPanelProvider';
 
 let manager: AgentManager | null = null;
+const WALKTHROUGH_ID = 'hamzawaleed.glance-claude-code#glancer.welcome';
+const WALKTHROUGH_SEEN_KEY = 'glancer.walkthrough.seen';
 
 export function activate(context: vscode.ExtensionContext): void {
   console.log('[glancer] activate() begin');
@@ -40,6 +42,25 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     { dispose: () => manager?.dispose() },
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('glancer.showWalkthrough', () =>
+      vscode.commands.executeCommand('workbench.action.openWalkthrough', WALKTHROUGH_ID, false),
+    ),
+  );
+
+  if (!context.globalState.get<boolean>(WALKTHROUGH_SEEN_KEY)) {
+    // Defer one tick so the activity bar paints before the walkthrough
+    // opens. The third arg `toSide=false` opens it as a full editor tab.
+    setTimeout(() => {
+      void vscode.commands.executeCommand(
+        'workbench.action.openWalkthrough',
+        WALKTHROUGH_ID,
+        false,
+      );
+      void context.globalState.update(WALKTHROUGH_SEEN_KEY, true);
+    }, 0);
+  }
 }
 
 export function deactivate(): void {
