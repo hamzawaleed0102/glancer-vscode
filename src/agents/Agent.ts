@@ -114,6 +114,16 @@ export class Agent implements vscode.Disposable {
     return this._attentionReason !== null || this._errorReason !== null;
   }
 
+  /**
+   * True between UserPromptSubmit and Stop. Used by AgentManager to gate
+   * the Notification hook: if the turn already ended (streaming=false),
+   * any incoming "needs input" notification is Claude Code's 60s idle
+   * ping rather than a real attention request, and should be ignored.
+   */
+  get streaming(): boolean {
+    return this._streaming;
+  }
+
   constructor(init: AgentInit) {
     this.init = init;
     this.id = init.id;

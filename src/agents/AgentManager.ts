@@ -529,15 +529,22 @@ export class AgentManager implements vscode.Disposable {
     } else if (hookEvent === 'Notification') {
       // Notification hook fires for two distinct cases:
       //   1. Real attention required — tool-permission prompts, slash-
-      //      command interactive pickers (e.g. /feedback). These come
-      //      with a specific message describing what's being awaited.
-      //   2. Claude Code's 60s idle timeout — fires automatically with
-      //      the generic "Claude is waiting for your input" message,
-      //      even after a clean turn ended. This is informational only,
-      //      not a real attention request.
-      // We surface (1) on the card but ignore (2) — otherwise every
-      // finished agent flips from green ✓ to yellow attention after a
-      // minute of user idle time, which is wrong.
+      //      command interactive pickers (e.g. /feedback). These fire
+      //      mid-turn, while the agent is streaming.
+      //   2. Claude Code's 60s idle timeout — fires automatically after
+      //      a clean turn already ended. Streaming is already false by
+      //      the time this arrives (Stop fired first). Informational
+      //      only, not a real attention request.
+      // Gate primarily on streaming state: if the turn already ended,
+      // ignore the Notification regardless of its wording. Without this
+      // every finished green ✓ card flipped to yellow attention after
+      // a minute of user idle time. Message-regex kept as a defensive
+      // fallback for the rare race where idle fires before Stop is
+      // processed.
+      if (!agent.streaming) {
+        console.log('[glancer] Notification: skipping (turn already ended)');
+        return;
+      }
       const payload = wrapper.payload as { message?: string } | undefined;
       const raw = typeof payload?.message === 'string' ? payload.message.trim() : '';
       if (/claude is waiting for your input/i.test(raw)) {
