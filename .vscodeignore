@@ -19,3 +19,6 @@ resources/icon-source.svg
 resources/readme/*.svg
 scripts/render-readme-pngs.mjs
 
+docs/**
+media/walkthrough/*.svg
+scripts/render-walkthrough-pngs.mjs
