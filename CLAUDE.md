@@ -43,6 +43,8 @@ Three runtimes cooperate per agent. Understand all three before changing the mar
   - `glancer-instructions.txt` — the system prompt the MCP server returns in its `initialize` response's `instructions` field. **No `--append-system-prompt` is used** — that path was removed because shell echo leaked the prompt into the terminal.
 - `Agent` spawns a `node-pty` child shell that runs `clear && claude --dangerously-skip-permissions [--model X] --settings … --mcp-config … [--resume <sessionId>]`. The PTY is wrapped in a `vscode.Pseudoterminal` so VS Code owns scrollback. See `src/agents/pseudoterminal.ts` — it holds a "Starting session…" placeholder until Claude emits the alt-screen escape (`\x1b[?1049h` / `1047h` / `47h`) or a 5s deadline elapses, then flushes; this hides the shell echo of the launch command.
 
+On activation, `extension.ts` also checks `context.globalState.get('glancer.walkthrough.seen')` and, if unset, opens the `glancer.welcome` walkthrough exactly once via `workbench.action.openWalkthrough`. This is the only reason `activationEvents` includes `onStartupFinished` alongside `onView:glancer.agents` — without it the first-install user wouldn't trigger activation until they opened the panel manually. The same walkthrough can be re-opened any time via `Glance: Show Welcome Tour` in the Command Palette.
+
 ### 2. Marker / state pipeline (the load-bearing flow)
 
 Claude updates the agent card **exclusively** via the MCP tool `glancer - update_state` (server: `src/markers/mcp-server.mjs`). The pipeline is:
