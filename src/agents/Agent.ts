@@ -51,6 +51,11 @@ function sanitizeMarkerString(v: unknown): string | null {
   return trimmed;
 }
 
+function capitalizeFirstLetter(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export interface AgentInit {
   id: string;
   cwd: string;
@@ -165,7 +170,7 @@ export class Agent implements vscode.Disposable {
   constructor(init: AgentInit) {
     this.init = init;
     this.id = init.id;
-    this._name = init.initialSnapshot?.name ?? `glancer-${init.id.slice(3)}`;
+    this._name = init.initialSnapshot?.name ?? `glance-${init.id.slice(3)}`;
     this._titleSource = init.initialSnapshot?.titleSource ?? 'default';
     this._model = init.model;
     this.stateFilePath = init.stateFilePath;
@@ -227,7 +232,7 @@ export class Agent implements vscode.Disposable {
     // Seed the terminal tab title with the current agent name so a restored
     // session with an AI/manual title shows that title in the VS Code
     // terminal panel from the moment it spawns — not just the default
-    // `glancer-XX`. Subsequent renames are pushed via `claude.setName`.
+    // `glance-XX`. Subsequent renames are pushed via `claude.setName`.
     //
     // Green tint on the tab indicator + eye icon visually distinguishes
     // Glancer-owned terminals from regular user shells in the same panel,
@@ -336,7 +341,7 @@ export class Agent implements vscode.Disposable {
    * Used when Claude runs /clear (SessionStart with source='clear') —
    * the conversation just got reset, so any "needs input" / error /
    * tldr / progress / AI-assigned title carried over from the prior
-   * conversation is stale. The title reverts to `glancer-XX` so the
+   * conversation is stale. The title reverts to `glance-XX` so the
    * next turn's update_state can claim a fresh title.
    *
    * Also persists by writing nulls into the state file so the on-disk
@@ -346,7 +351,7 @@ export class Agent implements vscode.Disposable {
    */
   resetCardState(): void {
     const patch: Partial<AgentSnapshot> = {};
-    const defaultName = `glancer-${this.id.slice(3)}`;
+    const defaultName = `glance-${this.id.slice(3)}`;
     if (this._name !== defaultName || this._titleSource !== 'default') {
       this._name = defaultName;
       this._titleSource = 'default';
@@ -482,13 +487,13 @@ export class Agent implements vscode.Disposable {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       // Empty input means "drop my override, go back to the auto-assigned
-      // glancer-id title". Flip titleSource to 'default' so the AI marker
+      // glance-id title". Flip titleSource to 'default' so the AI marker
       // can overwrite it from the next response.
       this._titleSource = 'default';
-      this._name = `glancer-${this.id.slice(3)}`;
+      this._name = `glance-${this.id.slice(3)}`;
     } else {
       this._titleSource = 'manual';
-      this._name = trimmed;
+      this._name = capitalizeFirstLetter(trimmed);
     }
     this.claude?.setName(this._name);
     this.changeEmitter.fire({ name: this._name, titleSource: this._titleSource });
@@ -577,7 +582,8 @@ export class Agent implements vscode.Disposable {
       this._titleSource !== 'manual' &&
       this._titleSource !== 'rename'
     ) {
-      const next = sanitizeMarkerString(s.title);
+      const sanitized = sanitizeMarkerString(s.title);
+      const next = sanitized !== null ? capitalizeFirstLetter(sanitized) : null;
       if (next !== null && next !== this._name) {
         this._name = next;
         this._titleSource = 'ai';
