@@ -13,6 +13,44 @@ function defaultShell(): string {
   return process.env.SHELL || '/bin/zsh';
 }
 
+/**
+ * Strings the model emits when it confuses our string-typed marker
+ * fields (tldr / title / needsInput / error / progress.label) with
+ * booleans or "do I have a value" sentinels. None of these are
+ * meaningful card content — they always come from a schema
+ * misinterpretation. Compared case-insensitively after trim.
+ */
+const MARKER_STRING_BAD_VALUES: ReadonlySet<string> = new Set([
+  'null',
+  'undefined',
+  'none',
+  'true',
+  'false',
+  'n/a',
+  'na',
+]);
+
+/**
+ * Normalize a model-supplied string marker. Returns `null` for any
+ * value that isn't a usable sentence/clause:
+ *   - non-strings (booleans, numbers, objects)
+ *   - empty / whitespace-only strings
+ *   - schema-confusion literals like "null", "true", "n/a"
+ * Trims surrounding whitespace on accepted values.
+ *
+ * Centralized here (not inlined per-call site) so every place that
+ * consumes a model-written marker — applyState, setNeedsAttention,
+ * progress.label, future fields — runs through the same gate. Adding
+ * a new bad value to the blocklist propagates automatically.
+ */
+function sanitizeMarkerString(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  if (MARKER_STRING_BAD_VALUES.has(trimmed.toLowerCase())) return null;
+  return trimmed;
+}
+
 export interface AgentInit {
   id: string;
   cwd: string;
@@ -361,7 +399,11 @@ export class Agent implements vscode.Disposable {
    * re-uses the turnComplete event so the toast logic stays in one place.
    */
   setNeedsAttention(reason: string): void {
-    const next = reason.trim() || 'Waiting for input';
+    // Sanitize through the same gate as model-supplied markers so a
+    // junk Notification payload (literal "true", "null", etc.) can't
+    // surface as attention text. Fall back to a generic label if the
+    // payload was unusable.
+    const next = sanitizeMarkerString(reason) ?? 'Waiting for input';
     let changed = false;
     const patch: Partial<AgentSnapshot> = {};
     if (this._attentionReason !== next) {
@@ -505,21 +547,8 @@ export class Agent implements vscode.Disposable {
   private applyState(s: AgentState): void {
     const patch: Partial<AgentSnapshot> = {};
 
-    // Defensive normalization: Claude occasionally sends the literal
-    // STRING "null" (or "undefined", "none") instead of the JSON value
-    // null. Treat those as null so we don't end up showing the word
-    // "null" as an error message or tldr.
-    const sanitize = (v: unknown): string | null => {
-      if (typeof v !== 'string') return null;
-      const t = v.trim();
-      if (!t) return null;
-      const low = t.toLowerCase();
-      if (low === 'null' || low === 'undefined' || low === 'none') return null;
-      return t;
-    };
-
     if ('tldr' in s && s.tldr !== undefined) {
-      const next = sanitize(s.tldr);
+      const next = sanitizeMarkerString(s.tldr);
       if (next !== this._tldr) {
         this._tldr = next;
         patch.tldr = next;
@@ -530,7 +559,7 @@ export class Agent implements vscode.Disposable {
       this._titleSource !== 'manual' &&
       this._titleSource !== 'rename'
     ) {
-      const next = sanitize(s.title);
+      const next = sanitizeMarkerString(s.title);
       if (next !== null && next !== this._name) {
         this._name = next;
         this._titleSource = 'ai';
@@ -540,14 +569,14 @@ export class Agent implements vscode.Disposable {
       }
     }
     if ('needsInput' in s && s.needsInput !== undefined) {
-      const next = sanitize(s.needsInput);
+      const next = sanitizeMarkerString(s.needsInput);
       if (next !== this._attentionReason) {
         this._attentionReason = next;
         patch.attentionReason = next;
       }
     }
     if ('error' in s && s.error !== undefined) {
-      const next = sanitize(s.error);
+      const next = sanitizeMarkerString(s.error);
       if (next !== this._errorReason) {
         this._errorReason = next;
         patch.errorReason = next;
@@ -555,14 +584,15 @@ export class Agent implements vscode.Disposable {
     }
     if ('progress' in s && s.progress !== undefined) {
       const p = s.progress;
+      const cleanLabel =
+        p && typeof p === 'object' ? sanitizeMarkerString(p.label) : null;
       const next =
         p &&
         typeof p === 'object' &&
         typeof p.value === 'number' &&
         Number.isFinite(p.value) &&
-        typeof p.label === 'string' &&
-        p.label.trim().length > 0
-          ? { value: Math.max(0, Math.min(1, p.value)), label: p.label.trim() }
+        cleanLabel !== null
+          ? { value: Math.max(0, Math.min(1, p.value)), label: cleanLabel }
           : null;
       const same =
         (next === null && this._progress === null) ||

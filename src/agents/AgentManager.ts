@@ -234,6 +234,13 @@ export class AgentManager implements vscode.Disposable {
       console.log(`[glancer] restored dormant ${e.id} name="${e.name}" sessionId=${e.sessionId ?? 'null'}`);
     }
     console.log(`[glancer] restorePersistedAgents: created ${this.agents.size} dormant agent(s)`);
+    // Dormant agents' stateWatchers fire applyState asynchronously as
+    // chokidar's polling kicks in. The change listener will re-emit on
+    // each of those, but we also publish a one-shot snapshot here so
+    // the badge is correct the moment the webview first resolves —
+    // even if no stateWatcher fires (e.g. dormant agent with no
+    // persisted state file).
+    this.emitUnreadCount();
   }
 
   /**
@@ -297,12 +304,13 @@ export class AgentManager implements vscode.Disposable {
     });
     agent.onChange((fields) => {
       this.changeEmitter.fire({ type: 'updated', id: opts.id, fields });
-      // Any change to attentionReason or errorReason can shift the badge
-      // count. Cheap: O(agents). Re-emit unconditionally on any update so
-      // we don't have to special-case those fields here AND in setNeedsAttention.
-      if ('attentionReason' in fields || 'errorReason' in fields) {
-        this.emitUnreadCount();
-      }
+      // Recompute the badge on EVERY change. Cheap (O(agents), single
+      // pass). Was previously gated on attentionReason/errorReason keys
+      // being in the patch — but that left edge cases (agent disposed
+      // mid-event, race conditions in restore, future code paths that
+      // forget to populate the key) where the badge could drift.
+      // Unconditional recompute eliminates the entire class of bug.
+      this.emitUnreadCount();
     });
     agent.onMetaChange(() => this.persist());
     agent.onTurnComplete(() =>
@@ -350,7 +358,6 @@ export class AgentManager implements vscode.Disposable {
   private removeAgent(id: string): void {
     const a = this.agents.get(id);
     if (!a) return;
-    const wasCounted = a.needsAttention;
     // Delete from the map FIRST so the async `proc.onExit` triggered by
     // `a.dispose()` re-enters this function as a no-op.
     this.agents.delete(id);
@@ -364,8 +371,12 @@ export class AgentManager implements vscode.Disposable {
     // agent with the same id (very unlikely) doesn't pick up stale markers.
     a.purgePersistentState();
     this.persist();
-    // Removing an attention-state agent drops the badge by one.
-    if (wasCounted) this.emitUnreadCount();
+    // Always recompute — even if this agent wasn't in attention, closing
+    // it can still shift other UI that derives from the agent set (and
+    // costs nothing). Previously gated on `wasCounted`, which silently
+    // dropped updates when the closing agent's attention state had just
+    // changed in a way we hadn't sampled yet.
+    this.emitUnreadCount();
   }
 
   select(id: string): void {
