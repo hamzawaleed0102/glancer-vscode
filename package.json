@@ -31,7 +31,8 @@
   },
   "main": "./out/extension.js",
   "activationEvents": [
-    "onView:glancer.agents"
+    "onView:glancer.agents",
+    "onStartupFinished"
   ],
   "scripts": {
     "build": "node esbuild.config.mjs",
@@ -72,6 +73,10 @@
       {
         "command": "glancer.killActive",
         "title": "Glance: Kill Active Agent"
+      },
+      {
+        "command": "glancer.showWalkthrough",
+        "title": "Glance: Show Welcome Tour"
       }
     ],
     "keybindings": [
@@ -96,6 +101,63 @@
         "key": "ctrl+backspace",
         "mac": "cmd+backspace",
         "when": "focusedView == glancer.agents"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "glancer.welcome",
+        "title": "Glance — Claude Code: Quick Tour",
+        "description": "Run multiple Claude Code sessions side-by-side. Learn the shortcuts in 30 seconds.",
+        "steps": [
+          {
+            "id": "find",
+            "title": "Find Glance in the activity bar",
+            "description": "Glance lives on the **left activity bar** — the same column where Explorer, Search, and Source Control live.\n\n[Open the panel](command:glancer.focusPanel)",
+            "media": {
+              "image": "media/walkthrough/find.png",
+              "altText": "The Glance icon highlighted on the VS Code activity bar"
+            },
+            "completionEvents": ["onView:glancer.agents"]
+          },
+          {
+            "id": "focus",
+            "title": "Open the panel — ⌘⇧G / Ctrl+Shift+G",
+            "description": "From anywhere in VS Code, press this shortcut to focus the panel. Press it again with the panel focused to spawn a new agent.\n\n[Try it](command:glancer.focusPanel)",
+            "media": {
+              "markdown": "media/walkthrough/focus.md"
+            },
+            "completionEvents": ["onCommand:glancer.focusPanel"]
+          },
+          {
+            "id": "spawn",
+            "title": "Spawn an agent — press g",
+            "description": "With the panel focused, press the **g** key to spawn a new Claude Code session. From anywhere else, ⌘⌥N / Ctrl+Alt+N works too.\n\n[Spawn one now](command:glancer.newAgent)",
+            "media": {
+              "image": "media/walkthrough/spawn.png",
+              "altText": "Agent list with a `g` keycap overlay"
+            },
+            "completionEvents": ["onCommand:glancer.newAgent"]
+          },
+          {
+            "id": "enter",
+            "title": "Jump into its terminal — Enter",
+            "description": "With a card selected in the panel, press **Enter** to hand keyboard focus to that agent's terminal. Press **Esc** to come back to the panel.",
+            "media": {
+              "image": "resources/readme/card-anatomy.png",
+              "altText": "Anatomy of an agent card: title, TL;DR, progress bar, status stripe, kill"
+            },
+            "completionEvents": ["onCommand:workbench.action.terminal.focus"]
+          },
+          {
+            "id": "more",
+            "title": "Cycle, rename, kill",
+            "description": "- **↑ / ↓** — cycle agents (panel focused)\n- **Double-click** a card title — rename it (renames are sticky until `/clear`)\n- **⌘⌫ / Ctrl+Backspace** — kill the active agent\n\nThat's everything. Have fun.",
+            "media": {
+              "image": "resources/readme/notification.png",
+              "altText": "VS Code toast firing when an agent finishes a turn in the background"
+            }
+          }
+        ]
       }
     ]
   },
