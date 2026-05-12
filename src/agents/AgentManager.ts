@@ -38,6 +38,15 @@ export class AgentManager implements vscode.Disposable {
   private readonly mcpConfigPath: string;
   private readonly instructionsPath: string;
   private readonly sessionsFile: string;
+  /**
+   * Persistent archive of session titles, keyed by Claude sessionId.
+   * Survives card kills (unlike sessions.json, which only carries
+   * entries for currently-tracked agents). Populated from every
+   * onMetaChange when titleSource is non-default; consulted by the
+   * old-sessions picker so closed cards still surface with their
+   * AI/manual title instead of falling back to firstPrompt.
+   */
+  private readonly titlesFile: string;
   private readonly eventsWatcher: FSWatcher;
   /**
    * VS Code's onDidChangeActiveTerminal subscription — mirrors the active
@@ -171,6 +180,7 @@ export class AgentManager implements vscode.Disposable {
     // across VS Code launches. The marker state (tldr/progress/etc.) lives
     // alongside in `state/<id>.json` files written by Claude via MCP.
     this.sessionsFile = path.join(this.storageDir, 'sessions.json');
+    this.titlesFile = path.join(this.storageDir, 'session-titles.json');
     this.restorePersistedAgents();
 
     // Keep the sidebar's active card in sync with VS Code's active terminal.
@@ -215,6 +225,20 @@ export class AgentManager implements vscode.Disposable {
       titleSource: AgentSnapshot['titleSource'];
       hasUserPrompt?: boolean;
     }>) {
+      // Mirror titled entries into the persistent titles archive on
+      // every restore. Existing installs ship sessions.json full of
+      // non-default titles that never went through this code path —
+      // this seeds them so a kill right after upgrade doesn't drop
+      // the title.
+      if (
+        e &&
+        typeof e.sessionId === 'string' &&
+        typeof e.name === 'string' &&
+        e.titleSource &&
+        e.titleSource !== 'default'
+      ) {
+        this.recordSessionTitle(e.sessionId, e.name, e.titleSource);
+      }
       if (!e || typeof e.id !== 'string' || typeof e.cwd !== 'string') {
         console.warn('[glancer] restorePersistedAgents: skipping malformed entry', e);
         continue;
@@ -312,7 +336,14 @@ export class AgentManager implements vscode.Disposable {
       // Unconditional recompute eliminates the entire class of bug.
       this.emitUnreadCount();
     });
-    agent.onMetaChange(() => this.persist());
+    agent.onMetaChange(() => {
+      this.persist();
+      // Mirror the title into the session-titles archive so it survives
+      // a future kill. Only non-default sources are worth archiving.
+      if (agent.sessionId) {
+        this.recordSessionTitle(agent.sessionId, agent.name, agent.titleSource);
+      }
+    });
     agent.onTurnComplete(() =>
       this.changeEmitter.fire({
         type: 'turnComplete',
@@ -352,30 +383,62 @@ export class AgentManager implements vscode.Disposable {
   }
 
   /**
-   * Read and parse sessions.json. Returns the raw entries array (with
-   * unknown-shape items) or [] on any error. Used by both the picker's
-   * listOldSessions (to surface Glance titles) and openOldSession (to
-   * carry the persisted name through to the new agent's snapshot).
+   * Read the session-titles archive (sessionId → name/titleSource).
+   * Returns an empty Map on missing file or invalid JSON. Written to
+   * by recordSessionTitle on every onMetaChange; read by the picker
+   * and openOldSession so titles survive card kills.
    */
-  private readPersistedSessionEntries(): Array<{
-    sessionId?: string;
-    name?: string;
-    titleSource?: TitleSource;
-  }> {
+  private readSessionTitles(): Map<string, { name: string; titleSource: TitleSource }> {
+    const map = new Map<string, { name: string; titleSource: TitleSource }>();
     try {
-      const raw = fs.readFileSync(this.sessionsFile, 'utf8');
-      const entries: unknown = JSON.parse(raw);
-      if (Array.isArray(entries)) {
-        return entries as Array<{
-          sessionId?: string;
-          name?: string;
-          titleSource?: TitleSource;
-        }>;
+      const raw = fs.readFileSync(this.titlesFile, 'utf8');
+      const data: unknown = JSON.parse(raw);
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        for (const [sessionId, entry] of Object.entries(
+          data as Record<string, unknown>,
+        )) {
+          if (
+            entry &&
+            typeof entry === 'object' &&
+            typeof (entry as { name?: unknown }).name === 'string' &&
+            typeof (entry as { titleSource?: unknown }).titleSource === 'string'
+          ) {
+            map.set(sessionId, {
+              name: (entry as { name: string }).name,
+              titleSource: (entry as { titleSource: TitleSource }).titleSource,
+            });
+          }
+        }
       }
     } catch {
-      // Missing file or invalid JSON — caller falls back to empty.
+      // Missing or invalid — return empty map.
     }
-    return [];
+    return map;
+  }
+
+  /**
+   * Upsert one entry in the titles archive. No-op for default-source
+   * titles (the `glance-NN` autoname carries no information worth
+   * archiving). Read-modify-write — concurrent updates from two agents
+   * race in theory, but each write captures the latest snapshot of
+   * its own key, so worst case is one lost intermediate update that
+   * the next title change will re-capture.
+   */
+  private recordSessionTitle(
+    sessionId: string,
+    name: string,
+    titleSource: TitleSource,
+  ): void {
+    if (titleSource === 'default') return;
+    const map = this.readSessionTitles();
+    map.set(sessionId, { name, titleSource });
+    const obj: Record<string, { name: string; titleSource: TitleSource }> = {};
+    for (const [k, v] of map) obj[k] = v;
+    try {
+      fs.writeFileSync(this.titlesFile, JSON.stringify(obj, null, 2));
+    } catch (err) {
+      console.warn('[glancer] failed to write session-titles archive:', err);
+    }
   }
 
   /**
@@ -391,23 +454,11 @@ export class AgentManager implements vscode.Disposable {
     for (const a of this.agents.values()) {
       if (a.sessionId) open.add(a.sessionId);
     }
-    // sessionId → Glance-assigned title (only entries where the model
-    // or user has overridden the default `glance-NN`).
-    const nameBySession = new Map<string, string>();
-    for (const e of this.readPersistedSessionEntries()) {
-      if (
-        typeof e?.sessionId === 'string' &&
-        typeof e.name === 'string' &&
-        e.titleSource &&
-        e.titleSource !== 'default'
-      ) {
-        nameBySession.set(e.sessionId, e.name);
-      }
-    }
+    const titles = this.readSessionTitles();
     const sessions = await scanOldSessions(cwd, open);
     return sessions.map((s) => ({
       ...s,
-      name: nameBySession.get(s.sessionId) ?? null,
+      name: titles.get(s.sessionId)?.name ?? null,
     }));
   }
 
@@ -421,24 +472,15 @@ export class AgentManager implements vscode.Disposable {
    */
   openOldSession(opts: { cwd: string; sessionId: string }): string {
     const id = nextAgentId(this.agents.keys());
-    // Carry the persisted Glance title (set by Claude via update_state
-    // or by the user via rename) through to the new agent's snapshot
-    // so the card opens with the same title the picker displayed,
-    // instead of briefly flashing `glance-NN`. Sessions without a
-    // tracked title fall back to the default — the AI will reclaim it
-    // on the next turn via the MCP update_state path.
-    let initialSnapshot: { name?: string; titleSource?: TitleSource } | undefined;
-    for (const e of this.readPersistedSessionEntries()) {
-      if (
-        e?.sessionId === opts.sessionId &&
-        typeof e.name === 'string' &&
-        e.titleSource &&
-        e.titleSource !== 'default'
-      ) {
-        initialSnapshot = { name: e.name, titleSource: e.titleSource };
-        break;
-      }
-    }
+    // Carry the archived title (set by Claude via update_state or by
+    // the user via rename) through to the new agent's snapshot so the
+    // card opens with the same title the picker displayed, instead of
+    // briefly flashing `glance-NN`. The titles archive survives kills,
+    // so this works even for sessions whose previous card was closed.
+    const archived = this.readSessionTitles().get(opts.sessionId);
+    const initialSnapshot = archived
+      ? { name: archived.name, titleSource: archived.titleSource }
+      : undefined;
     const agent = this.makeAgent({
       id,
       cwd: opts.cwd,
