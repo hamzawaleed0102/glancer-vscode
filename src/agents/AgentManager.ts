@@ -5,7 +5,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { Agent } from './Agent';
 import { nextAgentId } from './ids';
 import { summarySystemPrompt } from '../markers/systemPrompt';
-import type { AgentSnapshot, ClaudeModel, OldSession } from '../shared/messages';
+import type { AgentSnapshot, ClaudeModel, OldSession, TitleSource } from '../shared/messages';
 import { listOldSessions as scanOldSessions } from './sessionScanner';
 
 interface ManagerInit {
@@ -352,6 +352,33 @@ export class AgentManager implements vscode.Disposable {
   }
 
   /**
+   * Read and parse sessions.json. Returns the raw entries array (with
+   * unknown-shape items) or [] on any error. Used by both the picker's
+   * listOldSessions (to surface Glance titles) and openOldSession (to
+   * carry the persisted name through to the new agent's snapshot).
+   */
+  private readPersistedSessionEntries(): Array<{
+    sessionId?: string;
+    name?: string;
+    titleSource?: TitleSource;
+  }> {
+    try {
+      const raw = fs.readFileSync(this.sessionsFile, 'utf8');
+      const entries: unknown = JSON.parse(raw);
+      if (Array.isArray(entries)) {
+        return entries as Array<{
+          sessionId?: string;
+          name?: string;
+          titleSource?: TitleSource;
+        }>;
+      }
+    } catch {
+      // Missing file or invalid JSON — caller falls back to empty.
+    }
+    return [];
+  }
+
+  /**
    * Return past Claude Code sessions for `cwd`, excluding any whose
    * sessionId is currently held by a live agent in this manager. After
    * scanning, enriches each result with the Glance-assigned title (from
@@ -367,27 +394,15 @@ export class AgentManager implements vscode.Disposable {
     // sessionId → Glance-assigned title (only entries where the model
     // or user has overridden the default `glance-NN`).
     const nameBySession = new Map<string, string>();
-    try {
-      const raw = fs.readFileSync(this.sessionsFile, 'utf8');
-      const entries: unknown = JSON.parse(raw);
-      if (Array.isArray(entries)) {
-        for (const e of entries as Array<{
-          sessionId?: string;
-          name?: string;
-          titleSource?: string;
-        }>) {
-          if (
-            typeof e?.sessionId === 'string' &&
-            typeof e.name === 'string' &&
-            e.titleSource &&
-            e.titleSource !== 'default'
-          ) {
-            nameBySession.set(e.sessionId, e.name);
-          }
-        }
+    for (const e of this.readPersistedSessionEntries()) {
+      if (
+        typeof e?.sessionId === 'string' &&
+        typeof e.name === 'string' &&
+        e.titleSource &&
+        e.titleSource !== 'default'
+      ) {
+        nameBySession.set(e.sessionId, e.name);
       }
-    } catch {
-      // No persisted sessions yet — every session falls back to firstPrompt.
     }
     const sessions = await scanOldSessions(cwd, open);
     return sessions.map((s) => ({
@@ -406,6 +421,24 @@ export class AgentManager implements vscode.Disposable {
    */
   openOldSession(opts: { cwd: string; sessionId: string }): string {
     const id = nextAgentId(this.agents.keys());
+    // Carry the persisted Glance title (set by Claude via update_state
+    // or by the user via rename) through to the new agent's snapshot
+    // so the card opens with the same title the picker displayed,
+    // instead of briefly flashing `glance-NN`. Sessions without a
+    // tracked title fall back to the default — the AI will reclaim it
+    // on the next turn via the MCP update_state path.
+    let initialSnapshot: { name?: string; titleSource?: TitleSource } | undefined;
+    for (const e of this.readPersistedSessionEntries()) {
+      if (
+        e?.sessionId === opts.sessionId &&
+        typeof e.name === 'string' &&
+        e.titleSource &&
+        e.titleSource !== 'default'
+      ) {
+        initialSnapshot = { name: e.name, titleSource: e.titleSource };
+        break;
+      }
+    }
     const agent = this.makeAgent({
       id,
       cwd: opts.cwd,
@@ -417,6 +450,7 @@ export class AgentManager implements vscode.Disposable {
       sessionId: opts.sessionId,
       hasUserPrompt: true,
       dormant: false,
+      initialSnapshot,
     });
     this.agents.set(id, agent);
     this.changeEmitter.fire({ type: 'added', agent: agent.snapshot() });
