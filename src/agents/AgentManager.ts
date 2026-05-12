@@ -181,6 +181,10 @@ export class AgentManager implements vscode.Disposable {
     // alongside in `state/<id>.json` files written by Claude via MCP.
     this.sessionsFile = path.join(this.storageDir, 'sessions.json');
     this.titlesFile = path.join(this.storageDir, 'session-titles.json');
+    // Reload sweep — drop terminal tabs from the previous extension host
+    // before restoring agents. Without this, clicking a card spawns a
+    // duplicate alongside the dead ghost (see disposeGhostTerminals).
+    this.disposeGhostTerminals();
     this.restorePersistedAgents();
 
     // Keep the sidebar's active card in sync with VS Code's active terminal.
@@ -189,6 +193,38 @@ export class AgentManager implements vscode.Disposable {
     this.activeTerminalSub = vscode.window.onDidChangeActiveTerminal((t) =>
       this.syncActiveFromTerminal(t),
     );
+  }
+
+  /**
+   * After an extension reload (update install, "Developer: Reload Window")
+   * the extension host process restarts but VS Code keeps the old Glance
+   * terminal tabs visible in the panel. Their backing node-pty children
+   * died with the previous host, so they look alive but are inert. If we
+   * leave them, clicking a card spawns a fresh `--resume` PTY in a NEW
+   * terminal — leaving the user with a dead ghost + a live duplicate.
+   *
+   * Identify our own terminals by the eye ThemeIcon (every Agent sets
+   * `iconPath: new ThemeIcon('eye')` on createTerminal). The ThemeIcon
+   * instance loses its prototype across the host boundary, so check
+   * structurally for `{ id: 'eye' }` rather than via instanceof.
+   */
+  private disposeGhostTerminals(): void {
+    for (const t of vscode.window.terminals) {
+      const opts = t.creationOptions as { iconPath?: unknown } | undefined;
+      const icon = opts?.iconPath;
+      if (
+        icon &&
+        typeof icon === 'object' &&
+        'id' in icon &&
+        (icon as { id?: unknown }).id === 'eye'
+      ) {
+        try {
+          t.dispose();
+        } catch {
+          // already disposed
+        }
+      }
+    }
   }
 
   /**
