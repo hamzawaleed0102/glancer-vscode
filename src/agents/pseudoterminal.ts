@@ -44,31 +44,47 @@ const ALT_SCREEN_MARKERS = ['\x1b[?1049h', '\x1b[?1047h', '\x1b[?47h'];
 const SCREEN_RESET = '\x1b[2J\x1b[3J\x1b[H';
 const HIDE_CURSOR = '\x1b[?25l';
 const SHOW_CURSOR = '\x1b[?25h';
-// 3-dot wave that mirrors the card's bottom-right starting pulse. True-color
-// escapes keep the bright dot exactly on the card's accent blue regardless
-// of the terminal's 16-color palette mapping.
+// Pacman-style startup placeholder. A bright-white label sits above a
+// yellow pacman munching its way across a row of dim grey dots, mouth
+// flapping each frame. Loops every ~22 frames.
 const LABEL_TEXT = 'Starting Claude session';
-const LABEL = `\x1b[2;90m${LABEL_TEXT}\x1b[0m`;
-const BRIGHT = '\x1b[38;2;99;162;255m';
-const DIM = '\x1b[38;2;110;110;110m';
+const LABEL = `\x1b[1;97m${LABEL_TEXT}\x1b[0m`;
+const PACMAN_YELLOW = '\x1b[38;2;255;204;0m';
+const DOT_DIM = '\x1b[38;2;110;110;110m';
 const RESET = '\x1b[0m';
-const DOT = '●';
-// "Starting Claude session  ● ● ●" — 23 chars label + 2 gap + 5 dot row = 30.
-const PLACEHOLDER_WIDTH = LABEL_TEXT.length + 2 + 5;
-const DOT_FRAMES = [
-  `${BRIGHT}${DOT}${RESET} ${DIM}${DOT}${RESET} ${DIM}${DOT}${RESET}`,
-  `${DIM}${DOT}${RESET} ${BRIGHT}${DOT}${RESET} ${DIM}${DOT}${RESET}`,
-  `${DIM}${DOT}${RESET} ${DIM}${DOT}${RESET} ${BRIGHT}${DOT}${RESET}`,
-  `${DIM}${DOT}${RESET} ${BRIGHT}${DOT}${RESET} ${DIM}${DOT}${RESET}`,
-];
-const FRAME_INTERVAL_MS = 180;
+const MOUTH_OPEN = 'C';
+const MOUTH_CLOSED = 'O';
+const DOT_CHAR = '.';
+// 11 cells (pacman + up to 10 dots), each rendered with one column of
+// spacing between, so the visible bar width is `2 * cells - 1 = 21` cols.
+const PACMAN_CELLS = 11;
+const PACMAN_BAR_WIDTH = PACMAN_CELLS * 2 - 1;
+const LABEL_WIDTH = LABEL_TEXT.length;
+const FRAME_COUNT = PACMAN_CELLS * 2;
+const FRAME_INTERVAL_MS = 120;
+
+function buildPacmanBar(frame: number): string {
+  const pos = Math.floor(frame / 2) % PACMAN_CELLS;
+  const pacChar = frame % 2 === 0 ? MOUTH_OPEN : MOUTH_CLOSED;
+  const cells: string[] = [];
+  for (let i = 0; i < PACMAN_CELLS; i++) {
+    if (i < pos) cells.push(' ');
+    else if (i === pos) cells.push(`${PACMAN_YELLOW}${pacChar}${RESET}`);
+    else cells.push(`${DOT_DIM}${DOT_CHAR}${RESET}`);
+  }
+  return cells.join(' ');
+}
 
 function buildPlaceholderFrame(frame: number, cols: number, rows: number): string {
-  // Center vertically and horizontally inside the current terminal dimensions.
-  // Cursor positioning is 1-based; clamp to 1 so a tiny pane still renders.
+  // Center the label + the pacman bar (one row below) inside the current
+  // terminal dimensions. Cursor positioning is 1-based; clamp to 1 so a
+  // tiny pane still renders something rather than ANSI errors.
   const row = Math.max(1, Math.floor(rows / 2));
-  const col = Math.max(1, Math.floor((cols - PLACEHOLDER_WIDTH) / 2) + 1);
-  return `${SCREEN_RESET}${HIDE_CURSOR}\x1b[${row};${col}H${LABEL}  ${DOT_FRAMES[frame]}`;
+  const labelCol = Math.max(1, Math.floor((cols - LABEL_WIDTH) / 2) + 1);
+  const barCol = Math.max(1, Math.floor((cols - PACMAN_BAR_WIDTH) / 2) + 1);
+  const labelLine = `\x1b[${row};${labelCol}H${LABEL}`;
+  const barLine = `\x1b[${row + 1};${barCol}H${buildPacmanBar(frame)}`;
+  return `${SCREEN_RESET}${HIDE_CURSOR}${labelLine}${barLine}`;
 }
 
 export function createClaudePty(opts: ClaudePtyOpts): ClaudePty {
@@ -107,7 +123,7 @@ export function createClaudePty(opts: ClaudePtyOpts): ClaudePty {
     placeholderShown = true;
     writeEmitter.fire(buildPlaceholderFrame(0, cols, rows));
     placeholderTimer = setInterval(() => {
-      placeholderFrame = (placeholderFrame + 1) % DOT_FRAMES.length;
+      placeholderFrame = (placeholderFrame + 1) % FRAME_COUNT;
       writeEmitter.fire(buildPlaceholderFrame(placeholderFrame, cols, rows));
     }, FRAME_INTERVAL_MS);
   };
