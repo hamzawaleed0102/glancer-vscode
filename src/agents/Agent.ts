@@ -97,6 +97,19 @@ export interface AgentInit {
    * eligible for persistence. Set from sessions.json on restore.
    */
   hasUserPrompt?: boolean;
+  /**
+   * An existing VS Code terminal (from a previous extension host) that
+   * survived a reload with its underlying Claude process still alive.
+   * AgentManager identifies these by their eye `ThemeIcon` and matches
+   * them to persisted agents by name. When provided: the Agent skips
+   * `spawn()` (no new PTY), wires `this.terminal` to the survivor, and
+   * runs in "adopted" mode — `claude` stays null, state still flows via
+   * the state-file watcher (Claude inside the old PTY keeps writing to
+   * it), but we can't send programmatic input or repaint the tab name.
+   * Closing the tab in this mode is treated as a kill (see
+   * AgentManager.onDidCloseTerminal).
+   */
+  adoptedTerminal?: vscode.Terminal;
 }
 
 export class Agent implements vscode.Disposable {
@@ -125,6 +138,13 @@ export class Agent implements vscode.Disposable {
    * decide whether to persist the agent across launches.
    */
   private _hasUserPrompt: boolean;
+  /**
+   * True when this Agent took over a terminal that survived a previous
+   * extension host. We don't own a PTY in this mode (claude is null), so
+   * tab-name updates are skipped and the close handling in AgentManager
+   * treats the close as an explicit kill rather than dormant-on-exit.
+   */
+  private _adopted = false;
 
   private readonly changeEmitter = new vscode.EventEmitter<Partial<AgentSnapshot>>();
   readonly onChange = this.changeEmitter.event;
@@ -182,14 +202,28 @@ export class Agent implements vscode.Disposable {
     // state. The starting placeholder is for live launches only.
     if (this._dormant) this._starting = false;
 
-    if (!this._dormant) this.spawn();
+    if (init.adoptedTerminal) {
+      // Adopt path: terminal already exists (from previous extension host),
+      // Claude is presumably still running inside it. Wire up the reference,
+      // skip spawn — markers continue flowing via the state-file watcher.
+      this.terminal = init.adoptedTerminal;
+      this._adopted = true;
+      this._starting = false;
+    } else if (!this._dormant) {
+      this.spawn();
+    }
 
     // Always watch the state file. For dormant agents it reads back the
-    // persisted markers from the last session. For live agents it picks up
-    // updates from Claude's MCP tool calls.
+    // persisted markers from the last session. For live agents (spawned or
+    // adopted) it picks up updates from Claude's MCP tool calls.
     this.stateWatcher = watchState(this.stateFilePath, (state) =>
       this.applyState(state),
     );
+  }
+
+  /** True when this Agent adopted a surviving terminal at construction. */
+  get adopted(): boolean {
+    return this._adopted;
   }
 
   /**

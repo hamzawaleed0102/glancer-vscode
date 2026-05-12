@@ -55,6 +55,13 @@ export class AgentManager implements vscode.Disposable {
    * trip through the panel.
    */
   private readonly activeTerminalSub: vscode.Disposable;
+  /**
+   * Fires when a VS Code terminal closes. Used to remove adopted agents
+   * (whose terminals survived a previous extension host) when the user
+   * clicks the tab's close button. Normal spawned agents handle their
+   * own close via `claude.onExit` → `becomeDormant`.
+   */
+  private readonly closedTerminalSub: vscode.Disposable;
 
   private readonly changeEmitter = new vscode.EventEmitter<ManagerEvent>();
   readonly onChange = this.changeEmitter.event;
@@ -181,10 +188,6 @@ export class AgentManager implements vscode.Disposable {
     // alongside in `state/<id>.json` files written by Claude via MCP.
     this.sessionsFile = path.join(this.storageDir, 'sessions.json');
     this.titlesFile = path.join(this.storageDir, 'session-titles.json');
-    // Reload sweep — drop terminal tabs from the previous extension host
-    // before restoring agents. Without this, clicking a card spawns a
-    // duplicate alongside the dead ghost (see disposeGhostTerminals).
-    this.disposeGhostTerminals();
     this.restorePersistedAgents();
 
     // Keep the sidebar's active card in sync with VS Code's active terminal.
@@ -193,22 +196,36 @@ export class AgentManager implements vscode.Disposable {
     this.activeTerminalSub = vscode.window.onDidChangeActiveTerminal((t) =>
       this.syncActiveFromTerminal(t),
     );
+    // Closing the tab on an adopted terminal (one we took over from a
+    // previous extension host on reload) is treated as a kill, not as
+    // dormant-on-exit. Normal spawned terminals route their close through
+    // claude.onExit → becomeDormant — see Agent.spawn for that path.
+    this.closedTerminalSub = vscode.window.onDidCloseTerminal((t) =>
+      this.handleTerminalClosed(t),
+    );
   }
 
   /**
    * After an extension reload (update install, "Developer: Reload Window")
-   * the extension host process restarts but VS Code keeps the old Glance
-   * terminal tabs visible in the panel. Their backing node-pty children
-   * died with the previous host, so they look alive but are inert. If we
-   * leave them, clicking a card spawns a fresh `--resume` PTY in a NEW
-   * terminal — leaving the user with a dead ghost + a live duplicate.
+   * the extension host process restarts but VS Code keeps the Glance
+   * terminal tabs in the panel — and the Claude processes inside them
+   * keep running. The new extension host has no reference to them, so
+   * clicking an agent card used to spawn a duplicate `--resume` PTY.
    *
-   * Identify our own terminals by the eye ThemeIcon (every Agent sets
-   * `iconPath: new ThemeIcon('eye')` on createTerminal). The ThemeIcon
-   * instance loses its prototype across the host boundary, so check
-   * structurally for `{ id: 'eye' }` rather than via instanceof.
+   * Instead of disposing them, we ADOPT: build a name → Terminal map of
+   * surviving Glance-tagged terminals (eye `ThemeIcon`), and let
+   * `restorePersistedAgents` consume it — each persisted agent that
+   * finds its name in the map skips spawning a fresh PTY and reuses the
+   * live terminal. Identification is structural (`{ id: 'eye' }`) since
+   * the `ThemeIcon` prototype doesn't survive the host boundary.
+   *
+   * Unmatched eye terminals are left alone — they may belong to agents
+   * the user killed before reload (their `sessions.json` entry is gone)
+   * or to extensions impersonating our icon. Disposing them would be
+   * destructive; the user can close them by hand.
    */
-  private disposeGhostTerminals(): void {
+  private surveyAdoptableTerminals(): Map<string, vscode.Terminal> {
+    const map = new Map<string, vscode.Terminal>();
     for (const t of vscode.window.terminals) {
       const opts = t.creationOptions as { iconPath?: unknown } | undefined;
       const icon = opts?.iconPath;
@@ -218,11 +235,24 @@ export class AgentManager implements vscode.Disposable {
         'id' in icon &&
         (icon as { id?: unknown }).id === 'eye'
       ) {
-        try {
-          t.dispose();
-        } catch {
-          // already disposed
-        }
+        map.set(t.name, t);
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Called when any VS Code terminal closes. If the closed terminal was
+   * adopted by one of our agents (i.e. we took it over from a previous
+   * extension host on reload), treat the close as an explicit kill and
+   * remove the agent. Spawned terminals don't take this path — their
+   * close routes through `claude.onExit` → `becomeDormant` in Agent.
+   */
+  private handleTerminalClosed(t: vscode.Terminal): void {
+    for (const [id, a] of this.agents) {
+      if (a.adopted && a.ownsTerminal(t)) {
+        this.removeAgent(id);
+        return;
       }
     }
   }
@@ -234,6 +264,10 @@ export class AgentManager implements vscode.Disposable {
    * calls reveal() → revive() and starts claude with `--resume <id>`).
    */
   private restorePersistedAgents(): void {
+    // Terminals that survived a previous extension host — keyed by their
+    // tab name. Each persisted agent below claims the matching entry (if
+    // any) and adopts the terminal instead of spawning a fresh PTY.
+    const adoptable = this.surveyAdoptableTerminals();
     let raw: string;
     try {
       raw = fs.readFileSync(this.sessionsFile, 'utf8');
@@ -285,17 +319,24 @@ export class AgentManager implements vscode.Disposable {
         console.warn(`[glancer] restorePersistedAgents: skipping ${e.id} — cwd missing: ${e.cwd}`);
         continue;
       }
+      // If a terminal with this agent's tab name survived the reload,
+      // adopt it instead of staying dormant — clicking the card will
+      // reuse the existing tab (Claude is still running inside it)
+      // rather than spawn a duplicate `--resume` PTY.
+      const adoptedTerminal = adoptable.get(e.name);
+      if (adoptedTerminal) adoptable.delete(e.name);
       const agent = this.makeAgent({
         id: e.id,
         cwd: e.cwd,
         model: e.model ?? 'default',
-        dormant: true,
+        dormant: adoptedTerminal ? false : true,
         sessionId: e.sessionId ?? null,
         initialSnapshot: {
           name: e.name,
           titleSource: e.titleSource,
         },
         hasUserPrompt: e.hasUserPrompt ?? true,
+        adoptedTerminal,
       });
       this.agents.set(e.id, agent);
     }
@@ -347,6 +388,7 @@ export class AgentManager implements vscode.Disposable {
     sessionId?: string | null;
     initialSnapshot?: { name?: string; titleSource?: AgentSnapshot['titleSource'] };
     hasUserPrompt?: boolean;
+    adoptedTerminal?: vscode.Terminal;
   }): Agent {
     const agent = new Agent({
       id: opts.id,
@@ -361,6 +403,7 @@ export class AgentManager implements vscode.Disposable {
       sessionId: opts.sessionId,
       initialSnapshot: opts.initialSnapshot,
       hasUserPrompt: opts.hasUserPrompt,
+      adoptedTerminal: opts.adoptedTerminal,
     });
     agent.onChange((fields) => {
       this.changeEmitter.fire({ type: 'updated', id: opts.id, fields });
@@ -767,6 +810,7 @@ export class AgentManager implements vscode.Disposable {
     this.agents.clear();
     this.eventsWatcher.close();
     this.activeTerminalSub.dispose();
+    this.closedTerminalSub.dispose();
     this.changeEmitter.dispose();
   }
 }
