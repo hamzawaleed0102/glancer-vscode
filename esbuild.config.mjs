@@ -22,7 +22,11 @@ const webviewConfig = {
   platform: 'browser',
   format: 'iife',
   target: 'es2022',
-  sourcemap: true,
+  // Inline in dev so the debugger has line info without an external fetch
+  // (the webview CSP is `default-src 'none'` with no connect-src — an
+  // external .map would be blocked AND 404 in production where the map is
+  // .vscodeignore'd). No map at all in published builds keeps main.js lean.
+  sourcemap: watch ? 'inline' : false,
   jsx: 'automatic',
 };
 
