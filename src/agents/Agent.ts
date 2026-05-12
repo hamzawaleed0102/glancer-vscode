@@ -119,6 +119,19 @@ export class Agent implements vscode.Disposable {
   private _model: ClaudeModel;
   private _tldr: string | null = null;
   private _attentionReason: string | null = null;
+  /**
+   * Where the current `_attentionReason` came from:
+   *  - 'mcp'  → Claude's `update_state` call (i.e. Claude explicitly
+   *             said "I need input"). Stop must NOT clear this — the
+   *             ball is in the user's court until they reply.
+   *  - 'hook' → Claude Code's `Notification` hook (tool-permission
+   *             prompt, slash-command picker). The user resolves these
+   *             in VS Code's own UI and no follow-up hook fires, so
+   *             Stop clears this on the user's behalf or the yellow
+   *             gets stuck.
+   *  - null   → no attention reason active.
+   */
+  private _attentionSource: 'mcp' | 'hook' | null = null;
   private _errorReason: string | null = null;
   private _progress: { value: number; label: string } | null = null;
   private _streaming = false;
@@ -394,7 +407,11 @@ export class Agent implements vscode.Disposable {
       this.claude?.setName(defaultName);
     }
     if (this._tldr !== null) { this._tldr = null; patch.tldr = null; }
-    if (this._attentionReason !== null) { this._attentionReason = null; patch.attentionReason = null; }
+    if (this._attentionReason !== null) {
+      this._attentionReason = null;
+      this._attentionSource = null;
+      patch.attentionReason = null;
+    }
     if (this._errorReason !== null) { this._errorReason = null; patch.errorReason = null; }
     if (this._progress !== null) { this._progress = null; patch.progress = null; }
     if (this._streaming) { this._streaming = false; patch.streaming = false; }
@@ -427,15 +444,16 @@ export class Agent implements vscode.Disposable {
       this._streaming = false;
       patch.streaming = false;
     }
-    // Clear any attention marker the Notification hook set mid-turn. If
-    // Stop fires, the interactive picker was answered (or cancelled) —
-    // the user is no longer being asked anything. Without this, picker
-    // answers don't trigger any hook of their own, so the yellow state
-    // persists until the next UserPromptSubmit or an explicit
-    // needsInput=null from the model's next update_state call (which it
-    // often doesn't emit mid-tool-chain).
-    if (this._attentionReason !== null) {
+    // Clear attention markers set by the Notification hook (tool-permission
+    // prompts / slash-command pickers). Those resolve in VS Code's own UI
+    // without firing a follow-up hook, so without this clear the yellow
+    // would persist past the answer. MCP-sourced attention (Claude
+    // explicitly said "needsInput: ..." via update_state) is preserved —
+    // the ball is in the user's court until they reply or Claude clears
+    // it on the next turn. See _attentionSource doc.
+    if (this._attentionReason !== null && this._attentionSource === 'hook') {
       this._attentionReason = null;
+      this._attentionSource = null;
       patch.attentionReason = null;
     }
     if (Object.keys(patch).length > 0) this.changeEmitter.fire(patch);
@@ -460,6 +478,10 @@ export class Agent implements vscode.Disposable {
     const patch: Partial<AgentSnapshot> = {};
     if (this._attentionReason !== next) {
       this._attentionReason = next;
+      // Hook-sourced — VS Code's permission prompt / picker resolution
+      // doesn't emit a follow-up hook, so Stop is responsible for
+      // clearing this. See _attentionSource doc and notifyTurnComplete.
+      this._attentionSource = 'hook';
       patch.attentionReason = next;
       changed = true;
     }
@@ -500,6 +522,7 @@ export class Agent implements vscode.Disposable {
     }
     if (this._attentionReason !== null) {
       this._attentionReason = null;
+      this._attentionSource = null;
       patch.attentionReason = null;
     }
     if (this._errorReason !== null) {
@@ -630,6 +653,10 @@ export class Agent implements vscode.Disposable {
       const next = sanitizeMarkerString(s.needsInput);
       if (next !== this._attentionReason) {
         this._attentionReason = next;
+        // MCP-sourced — Claude explicitly said "I need input" (or
+        // explicitly null'd it). Stop must not wipe this; only Claude's
+        // next update_state (or the next user prompt) can change it.
+        this._attentionSource = next === null ? null : 'mcp';
         patch.attentionReason = next;
       }
     }
