@@ -121,6 +121,7 @@ export class Agent implements vscode.Disposable {
   private _attentionSource: 'mcp' | 'hook' | null = null;
   private _errorReason: string | null = null;
   private _progress: { value: number; label: string } | null = null;
+  private _skill: string | null = null;
   private _streaming = false;
   private _starting = true;
 
@@ -380,6 +381,7 @@ export class Agent implements vscode.Disposable {
     }
     if (this._errorReason !== null) { this._errorReason = null; patch.errorReason = null; }
     if (this._progress !== null) { this._progress = null; patch.progress = null; }
+    if (this._skill !== null) { this._skill = null; patch.skill = null; }
     if (this._streaming) { this._streaming = false; patch.streaming = false; }
     if (Object.keys(patch).length > 0) this.changeEmitter.fire(patch);
     if (patch.name !== undefined) this.metaChangeEmitter.fire();
@@ -389,7 +391,7 @@ export class Agent implements vscode.Disposable {
       fs.writeFileSync(
         this.stateFilePath,
         JSON.stringify(
-          { title: this._name, tldr: null, progress: null, needsInput: null, error: null },
+          { title: this._name, tldr: null, progress: null, needsInput: null, error: null, skill: null },
           null,
           2,
         ),
@@ -499,6 +501,10 @@ export class Agent implements vscode.Disposable {
       this._progress = null;
       patch.progress = null;
     }
+    if (this._skill !== null) {
+      this._skill = null;
+      patch.skill = null;
+    }
     if (!this._streaming) {
       this._streaming = true;
       patch.streaming = true;
@@ -552,6 +558,7 @@ export class Agent implements vscode.Disposable {
       attentionReason: this._attentionReason,
       errorReason: this._errorReason,
       progress: this._progress,
+      skill: this._skill,
       streaming: this._streaming,
       starting: this._starting,
     };
@@ -631,6 +638,17 @@ export class Agent implements vscode.Disposable {
       if (next !== this._errorReason) {
         this._errorReason = next;
         patch.errorReason = next;
+      }
+    }
+    if ('skill' in s && s.skill !== undefined) {
+      // Strip any `superpowers:` (or other plugin) prefix so the pill stays
+      // short — the user just wants to see "test-driven-development", not
+      // "superpowers:test-driven-development".
+      const sanitized = sanitizeMarkerString(s.skill);
+      const next = sanitized !== null ? sanitized.replace(/^[\w-]+:/, '') : null;
+      if (next !== this._skill) {
+        this._skill = next;
+        patch.skill = next;
       }
     }
     if ('progress' in s && s.progress !== undefined) {

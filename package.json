@@ -2,7 +2,7 @@
   "name": "glance-claude-code",
   "displayName": "Glance for Claude Code",
   "description": "Multi-session Claude Code agent panel for VS Code.",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "publisher": "hamzawaleed",
   "license": "MIT",
   "icon": "resources/icon.png",

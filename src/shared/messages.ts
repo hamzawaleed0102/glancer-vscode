@@ -10,6 +10,13 @@ export interface AgentSnapshot {
   attentionReason: string | null;
   errorReason: string | null;
   progress: { value: number; label: string } | null;
+  /**
+   * Slug of the Skill currently driving the turn, set by Claude via
+   * `update_state`. Rendered as a small pill on the card. `null` when no
+   * skill is active. Source of truth is Claude's MCP call — Glance doesn't
+   * infer the skill, only displays what Claude reports.
+   */
+  skill: string | null;
   streaming: boolean;
   /**
    * True from the moment the agent is spawned until Claude's TUI is on

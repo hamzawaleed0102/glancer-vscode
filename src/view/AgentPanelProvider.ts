@@ -107,13 +107,6 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
    * separately by `unread` events the manager emits whenever any agent's
    * attentionReason/errorReason changes — no explicit mark-as-read
    * bookkeeping here.
-   *
-   * Uses `withProgress` rather than `showInformationMessage` so the
-   * notification auto-dismisses the moment the user looks at this
-   * agent's terminal. `showInformationMessage` has no programmatic
-   * dismissal — its entries linger in the Notifications panel until
-   * the user clears them by hand. Trade-off: no inline "Show" button;
-   * the user clicks the agent card or terminal tab to focus.
    */
   private handleTurnComplete(snapshot: import('../shared/messages').AgentSnapshot): void {
     if (this.userIsWatching(snapshot.id)) return;
@@ -127,34 +120,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     // Audible cue paired with the toast — useful when the user is in
     // another app or another tab and the toast is off-screen.
     this.view?.webview.postMessage({ type: 'playTone' } satisfies HostToWebview);
-
-    void vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: body,
-        cancellable: true,
-      },
-      async (_progress, token) =>
-        new Promise<void>((resolve) => {
-          let settled = false;
-          const settle = () => {
-            if (settled) return;
-            settled = true;
-            focusSub.dispose();
-            clearTimeout(timeout);
-            resolve();
-          };
-          const focusSub = vscode.window.onDidChangeActiveTerminal((t) => {
-            if (t && this.manager.isAgentTerminalActive(snapshot.id)) settle();
-          });
-          token.onCancellationRequested(settle);
-          // Safety cap so a forgotten notification doesn't sit forever
-          // if the user never opens that agent again. 60s is well past
-          // VS Code's own toast-slide-away (~5s) but not so long that
-          // the panel fills with stale entries.
-          const timeout = setTimeout(settle, 60_000);
-        }),
-    );
+    vscode.window.showInformationMessage(body, 'Show').then((picked) => {
+      if (picked === 'Show') this.manager.focusTerminal(snapshot.id);
+    });
   }
 
   /**

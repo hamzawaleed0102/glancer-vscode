@@ -297,6 +297,30 @@ body {
 .agent-tldr.warn { color: var(--warn); font-weight: 500; }
 .agent-tldr.danger { color: var(--danger); font-weight: 500; }
 
+/* TL;DR + skill pill share a row. The pill hugs the right edge and the
+ * sub-line takes the remaining width; pill stays on the last visible line
+ * thanks to align-items: flex-end. */
+.agent-card-subrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.agent-card-subrow .agent-card-sub { flex: 1 1 auto; min-width: 0; }
+.agent-card-sub-spacer { flex: 1 1 auto; }
+.agent-skill-pill {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Progress */
 .agent-progress-row {
   display: flex;

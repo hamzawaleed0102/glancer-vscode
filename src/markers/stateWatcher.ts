@@ -14,6 +14,7 @@ export interface AgentState {
   progress?: { value: number; label: string } | null;
   needsInput?: string | null;
   error?: string | null;
+  skill?: string | null;
 }
 
 export interface StateWatcher {

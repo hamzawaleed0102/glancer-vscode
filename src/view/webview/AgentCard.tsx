@@ -164,14 +164,28 @@ export function AgentCard({
         )}
       </div>
 
-      <div className="reveal" data-open={description ? 'true' : 'false'}>
+      <div className="reveal" data-open={description || agent.skill ? 'true' : 'false'}>
         <div className="reveal-inner">
-          {description && (
-            <div
-              className={`agent-card-sub agent-tldr ${descriptionTone}`}
-              title={description}
-            >
-              {description}
+          {(description || agent.skill) && (
+            <div className="agent-card-subrow">
+              {description ? (
+                <div
+                  className={`agent-card-sub agent-tldr ${descriptionTone}`}
+                  title={description}
+                >
+                  {description}
+                </div>
+              ) : (
+                <span className="agent-card-sub-spacer" />
+              )}
+              {agent.skill && (
+                <span
+                  className="agent-skill-pill"
+                  title={`Skill: ${agent.skill}`}
+                >
+                  {agent.skill}
+                </span>
+              )}
             </div>
           )}
         </div>

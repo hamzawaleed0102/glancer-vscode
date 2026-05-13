@@ -37,7 +37,7 @@ const PROTOCOL_VERSION = '2024-11-05';
 // `glancer - update_state(…)` in tool-call traces, which reads naturally
 // as "update state on glancer".
 const TOOL_NAME = 'update_state';
-const STATE_KEYS = ['title', 'tldr', 'progress', 'needsInput', 'error'];
+const STATE_KEYS = ['title', 'tldr', 'progress', 'needsInput', 'error', 'skill'];
 
 function log(line) {
   try {
@@ -58,18 +58,19 @@ const TOOLS = [
     name: TOOL_NAME,
     description:
       "Update the Glance agent card — the small UI panel showing this " +
-      "session's title, TL;DR, progress bar, and needs-input/error flags. " +
-      'You MUST call this as the LAST action of EVERY response (short, ' +
-      'long, trivial, or mid-tool-chain), with ALL FIVE fields populated. ' +
-      'Use real values for fields that apply this turn and explicit `null` ' +
-      'for fields that do not (e.g. {progress: null} on a trivial greeting, ' +
-      "{error: null} when nothing's broken, {needsInput: null} when you're " +
-      "not waiting on the user). Never omit a field — omitted fields " +
-      "preserve their prior value, which silently desyncs the card from " +
-      "what's actually happening this turn.",
+      "session's title, TL;DR, progress bar, needs-input/error flags, and " +
+      'active-skill pill. You MUST call this as the LAST action of EVERY ' +
+      'response (short, long, trivial, or mid-tool-chain), with ALL SIX ' +
+      'fields populated. Use real values for fields that apply this turn ' +
+      'and explicit `null` for fields that do not (e.g. {progress: null} ' +
+      "on a trivial greeting, {error: null} when nothing's broken, " +
+      "{needsInput: null} when you're not waiting on the user, {skill: " +
+      'null} when no Skill is loaded). Never omit a field — omitted ' +
+      'fields preserve their prior value, which silently desyncs the card ' +
+      "from what's actually happening this turn.",
     inputSchema: {
       type: 'object',
-      required: ['title', 'tldr', 'progress', 'needsInput', 'error'],
+      required: ['title', 'tldr', 'progress', 'needsInput', 'error', 'skill'],
       properties: {
         title: {
           type: 'string',
@@ -130,6 +131,18 @@ const TOOLS = [
           description:
             'Short clause when a hard failure blocks progress and the user ' +
             'must intervene. null for normal turns.',
+        },
+        skill: {
+          oneOf: [{ type: 'string' }, { type: 'null' }],
+          description:
+            'Slug of the Skill currently driving this turn, when one is ' +
+            'active — e.g. "test-driven-development", "claude-api", ' +
+            '"debugging". Set the moment you invoke a Skill, keep it set ' +
+            'while operating under that Skill\'s guidance, and pass null ' +
+            'once you move on to plain work. Display only — Glance renders ' +
+            'it as a small pill on the card so the user can see what kind ' +
+            'of work the session is currently doing. Use the bare skill ' +
+            'slug (no `superpowers:` prefix).',
         },
       },
     },
