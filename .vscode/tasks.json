@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "pnpm run build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "watch",
+      "type": "shell",
+      "command": "pnpm run watch",
+      "isBackground": true,
+      "group": "build",
+      "problemMatcher": ["$tsc-watch"]
+    },
+    {
+      "label": "Launch Dev Host",
+      "type": "shell",
+      "command": "pnpm run build && \"/Applications/Visual Studio Code.app/Contents/MacOS/Code\" --extensionDevelopmentPath=\"${workspaceFolder}\"",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

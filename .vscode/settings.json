@@ -1,0 +1,16 @@
+{
+  "actionButtons": {
+    "defaultColor": "#ffffff",
+    "loadNpmCommands": false,
+    "reloadButton": null,
+    "commands": [
+      {
+        "name": "$(play) Launch Dev Host",
+        "color": "#9ee37d",
+        "singleInstance": true,
+        "tooltip": "Build the extension and open a fresh Extension Development Host window",
+        "command": "pnpm run build && \"/Applications/Visual Studio Code.app/Contents/MacOS/Code\" --extensionDevelopmentPath=\"${workspaceFolder}\""
+      }
+    ]
+  }
+}
