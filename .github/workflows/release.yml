@@ -73,11 +73,14 @@ jobs:
 
       - name: Stage Linux native build into prebuilds dir
         # node-pty's install script runs node-gyp rebuild on Linux (no
-        # prebuilt binary in its npm tarball). node-gyp drops the
-        # outputs in build/Release/, but .vscodeignore only re-includes
+        # prebuilt binary in its npm tarball). node-gyp drops pty.node
+        # in build/Release/, but .vscodeignore only re-includes
         # node-pty's prebuilds/ subtree and package-platforms.mjs checks
-        # that same dir. Copy the artifacts into the platform-specific
-        # prebuilds slot so both can find them.
+        # that same dir. Copy pty.node into the platform-specific
+        # prebuilds slot so both can find it. Note: no spawn-helper on
+        # Linux — that's a macOS-only workaround for hardened runtime;
+        # Linux node-pty uses plain fork/exec, so the binding.gyp
+        # doesn't even build a spawn-helper target on this platform.
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -85,8 +88,6 @@ jobs:
           dst=node_modules/node-pty/prebuilds/${{ matrix.target }}
           mkdir -p "$dst"
           cp "$src/pty.node" "$dst/pty.node"
-          cp "$src/spawn-helper" "$dst/spawn-helper"
-          chmod +x "$dst/spawn-helper"
           ls -la "$dst"
 
       - name: Build VSIX

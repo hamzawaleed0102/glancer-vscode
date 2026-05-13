@@ -1,7 +1,7 @@
 {
   "name": "glance-claude-code",
   "displayName": "Glance for Claude Code",
-  "description": "Multi-session Claude Code agent panel for VS Code.",
+  "description": "Manage multiple Claude Code agents at a glance in VS Code — live status cards for each session, no eye strain switching between terminals.",
   "version": "0.0.20",
   "publisher": "hamzawaleed",
   "license": "MIT",
@@ -108,7 +108,7 @@
       {
         "id": "glancer.welcome",
         "title": "Glance — Claude Code: Quick Tour",
-        "description": "Run multiple Claude Code sessions side-by-side. Learn the shortcuts in 30 seconds.",
+        "description": "Manage multiple Claude Code agents at a glance — live status cards for each session, no eye strain switching between terminals. Learn the shortcuts in 30 seconds.",
         "steps": [
           {
             "id": "find",
@@ -151,11 +151,11 @@
           },
           {
             "id": "more",
-            "title": "Cycle, rename, kill",
-            "description": "- **↑ / ↓** — cycle agents (panel focused)\n- **Double-click** a card title — rename it (renames are sticky until `/clear`)\n- **⌘⌫ / Ctrl+Backspace** — kill the active agent\n\nThat's everything. Have fun.",
+            "title": "Keyboard shortcuts",
+            "description": "With the panel focused:\n\n- **↑ / ↓** — cycle agents\n- **Enter** — jump into the highlighted agent's terminal\n- **Esc** — drop back to the panel\n- **g** — spawn a new agent\n- **c c** (press `c` twice) — run `/clear` in the highlighted agent\n- **f** — toggle bottom-panel maximize (full-screen the terminal)\n- **⌘⌫ / Ctrl+Backspace** — kill the highlighted agent\n- **Double-click** a card title — rename it (sticky until the next `/clear`)\n\nFrom anywhere in VS Code:\n\n- **⌘⇧G / Ctrl+Shift+G** — focus the panel (press again with panel focused = new agent)\n- **⌘⌥N / Ctrl+Alt+N** — new agent without leaving wherever you are\n\nThat's everything. Have fun.",
             "media": {
               "image": "resources/readme/notification.png",
-              "altText": "VS Code toast firing when an agent finishes a turn in the background"
+              "altText": "Activity-bar badge marking an agent that needs attention"
             }
           }
         ]
