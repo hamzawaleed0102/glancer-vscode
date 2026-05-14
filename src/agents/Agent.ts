@@ -168,6 +168,13 @@ export class Agent implements vscode.Disposable {
    * which naturally drops this back to false.
    */
   get needsAttention(): boolean {
+    // Dormant agents (terminal closed — no live PTY, can't accept
+    // input until the user revives them) shouldn't bump the badge.
+    // The card still renders yellow via the snapshot's
+    // `attentionReason` if that's how the prior turn ended, so the
+    // visual signal is preserved; the activity-bar badge just stops
+    // nagging for a session the user can't respond to right now.
+    if (this._dormant) return false;
     return this._attentionReason !== null;
   }
 
