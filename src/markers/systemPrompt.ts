@@ -81,12 +81,28 @@ export function summarySystemPrompt(_stateFilePath: string): string {
     '  - BAD: "Helped the user refactor the list component." → GOOD: ' +
     '"Refactored the list component."\n\n' +
     '`progress` — object {"value": <0..1>, "label": "<short present-tense ' +
-    'activity>"} during multi-step or non-trivial work. Start around 0.1 ' +
-    'on a turn\'s first call, advance on each meaningful transition (0.1 ' +
-    '→ 0.3 → 0.6 → 1). Final call of the turn: {"value": 1, "label": ' +
-    '"<terminal>"}. On a trivial turn (pure greeting, one-line answer, ' +
-    'pure clarifying-questions reply) pass null. Reset fresh each turn — ' +
-    'don\'t carry value from the previous turn.\n\n' +
+    'activity>"} during multi-step or non-trivial work. Reset fresh each ' +
+    'turn — don\'t carry value from the previous turn. On a trivial turn ' +
+    '(pure greeting, one-line answer, pure clarifying-questions reply) ' +
+    'pass null.\n' +
+    '  Single-step or unstructured work: start around 0.1 on the first ' +
+    'call, advance on each meaningful transition (0.1 → 0.3 → 0.6 → 1), ' +
+    'end with {"value": 1, "label": "<terminal>"}.\n' +
+    '  MULTI-TODO work (you have 2+ items via TodoWrite or an explicit ' +
+    'plan): the bar reflects OVERALL progress across the WHOLE list, ' +
+    'NEVER per-item. Without this, the user sees the bar fill to 100% ' +
+    'on item 1, snap back near 0% on item 2, then fill again — looks ' +
+    'broken. Rules:\n' +
+    '    - `value` = (items_done + 0.5) / total_items while partway ' +
+    'through an item, or items_done / total_items at item boundaries. ' +
+    'Final call: {"value": 1, "label": "<N>/<N> done"}.\n' +
+    '    - `label` MUST start with the step counter as "<current>/' +
+    '<total> " — e.g. "1/3 starting", "2/3 exploring api", "3/3 ' +
+    'finishing", "3/3 done". Counter goes before the activity word, no ' +
+    'colon. Update the counter the moment you START item N (not when ' +
+    'you finish it) so the heading tracks the work in flight.\n' +
+    '    - Skip the counter prefix when total_items ≤ 1; bare label ' +
+    'like "starting" / "done" is correct there.\n\n' +
     '`needsInput` — string clause when your reply ends awaiting a user ' +
     'answer (yes/no, value, path, confirmation, pick between options). ' +
     'null otherwise.\n\n' +

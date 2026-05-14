@@ -68,6 +68,28 @@ function statusLabel(s: StatusKind): string {
   }
 }
 
+/**
+ * Splits a progress label that starts with a step counter like "1/3 " into
+ * a separate counter chip + activity word. Without this, multi-todo turns
+ * (where Claude formats the label as "<i>/<n> <activity>") render the
+ * counter inline with the activity text and read as one blob. Pulling it
+ * out gives the user a quick "where am I in the list" glance.
+ *
+ * Non-matching labels fall through unchanged.
+ */
+function ProgressLabel({ label }: { label: string }) {
+  const m = label.match(/^(\d+\/\d+)\s+(.+)$/);
+  if (!m) {
+    return <div className="agent-progress-label">{label}</div>;
+  }
+  return (
+    <div className="agent-progress-label">
+      <span className="agent-progress-counter">{m[1]}</span>
+      {m[2]}
+    </div>
+  );
+}
+
 export function AgentCard({
   agent,
   active,
@@ -196,7 +218,7 @@ export function AgentCard({
                   style={{ width: `${Math.round(agent.progress.value * 100)}%` }}
                 />
               </div>
-              <div className="agent-progress-label">{agent.progress.label}</div>
+              <ProgressLabel label={agent.progress.label} />
             </div>
           )}
         </div>

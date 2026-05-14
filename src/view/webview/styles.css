@@ -345,6 +345,24 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Step counter chip — pulled out of progress labels of the form
+ * "<i>/<n> <activity>" by ProgressLabel. Monospace + slightly
+ * brighter than the italic activity text so the user can scan
+ * "where am I in the todo list" without reading the whole label. */
+.agent-progress-counter {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 4px;
+  font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--vscode-foreground, #ddd);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  vertical-align: 1px;
+}
 /* While the starting indicator is occupying bottom-right, give the
  * progress label some right-padding so its ellipsis happens before it
  * runs into the indicator chip. */
