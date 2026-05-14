@@ -68,6 +68,10 @@ Close VS Code, reopen it — your agents are still there. Reload-the-window does
 
 The dropdown chevron next to **+ New Session** lets you choose Opus / Sonnet / Haiku per agent. The card shows a small chip with the active model.
 
+### Pin a card you don't want to lose
+
+Press `p` with a card focused to pin it. Pinned cards jump to the top of the list (FIFO when you pin a second/third), can't be killed with `Cmd+Backspace` or the X (the X is replaced by a pin icon), and survive reloads. Press `p` again (or click the pin icon) to unpin.
+
 ## Keyboard shortcuts
 
 The whole point of Glance is that you steer a fleet from one panel — no terminal-tab juggling. Most of the shortcuts only fire while the panel itself is focused (`Cmd+Shift+G` / `Ctrl+Shift+G` gets you there from anywhere).
@@ -86,6 +90,7 @@ The whole point of Glance is that you steer a fleet from one panel — no termin
 | Cycle agents | `↑` / `↓` |
 | Jump into the highlighted agent's terminal | `Enter` |
 | Drop back to the panel | `Esc` |
+| Pin / unpin the highlighted agent | `p` |
 | New agent | `g` (or `Cmd+Shift+G` again) |
 | Run `/clear` on the highlighted agent | `c` `c` (press `c` twice within 400 ms) |
 | Toggle bottom-panel maximize (full-screen the terminal) | `f` |
