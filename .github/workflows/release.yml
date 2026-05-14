@@ -24,9 +24,16 @@ jobs:
           # macOS — Apple Silicon (M-series). macos-latest is arm64.
           - os: macos-latest
             target: darwin-arm64
-          # macOS Intel — still pinned at macos-13 (the last GitHub-
-          # provided x64 image). Newer macos-* labels are arm64-only.
-          - os: macos-13
+          # macOS Intel — packaged on the arm64 runner. node-pty's
+          # npm tarball ships both darwin-x64 and darwin-arm64
+          # prebuilds, so producing an x64 .vsix needs no Intel
+          # hardware; package-platforms.mjs just copies the right
+          # prebuild dir into the .vsix. Mirrors Microsoft's
+          # vscode-platform-specific-sample, which also runs both
+          # darwin targets on macos-latest. macos-13 was abandoned
+          # because that Intel runner pool queues for 60+ minutes
+          # on the free tier.
+          - os: macos-latest
             target: darwin-x64
           # Linux x64 — node-pty has no prebuild for linux, so
           # pnpm install compiles it from source via node-gyp. The
